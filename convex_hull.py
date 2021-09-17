@@ -1,3 +1,5 @@
+#import self
+
 from which_pyqt import PYQT_VER
 if PYQT_VER == 'PYQT5':
 	from PyQt5.QtCore import QLineF, QPointF, QObject
@@ -71,9 +73,15 @@ class ConvexHullSolver(QObject):
 
 		t3 = time.time()
 		# this is a dummy polygon of the first 3 unsorted points
-		polygon = [QLineF(points[i],points[(i+1)%3]) for i in range(3)]
+		#polygon = [QLineF(points[i],points[(i+1)%3]) for i in range(3)]
 		# TODO: REPLACE THE LINE ABOVE WITH A CALL TO YOUR DIVIDE-AND-CONQUER CONVEX HULL SOLVER
-
+		#print("before find_hull")
+		new_points = self.find_hull(points)
+		#print("after find_hull")
+		#print(new_points)
+		polygon = [QLineF(new_points[i].x(), new_points[i].y(),
+						  new_points[(i + 1) % len(new_points)].x(), new_points[(i + 1) % len(new_points)].y())
+				   for i in range(len(new_points))]
 		t4 = time.time()
 
 		# when passing lines to the display, pass a list of QLineF objects.  Each QLineF
@@ -86,6 +94,7 @@ class ConvexHullSolver(QObject):
 	# recursively call this function until points/2 < 1
 	# lol then combine the hulls XD simple
 	def find_hull(self, points):
+		print("in find_hull")
 		l = len(points)
 		temp = []
 		if l == 1:
@@ -98,10 +107,9 @@ class ConvexHullSolver(QObject):
 			if slope >= 0:
 				return points
 			elif slope < 0:
-				temp[0] = points[1]
-				temp[1] = points[0]
+				temp = temp.append(points[1])
+				temp = temp.append(points[0])
 				return temp
-			return points
 
 		if l == 3:
 			# find the hull of 3
@@ -110,17 +118,17 @@ class ConvexHullSolver(QObject):
 			slopeP0ToP1 = (points[1].y() - points[0].y()) / (points[1].x() - points[0].y())
 			slopeP0ToP2 = (points[2].y() - points[0].y()) / (points[2].x() - points[0].y())
 			if slopeP0ToP1 > slopeP0ToP2:
+				#print("in find_hull")
+				#print(points)
 				return points
 			else:
 				# make it clockwise oriented
+				temp = points
 				temp[0] = points[0]
 				temp[1] = points[2]
 				temp[2] = points[1]
+				print(temp)
 				return temp
-
-			return points
-
-		return
 
 # right in the list to go clockwise
 	def find_upper_tangent(self, L, R):
@@ -162,5 +170,6 @@ class ConvexHullSolver(QObject):
 		return 0
 
 
-# if __name__ == '__main__':
-	# find_hull(points =  )
+#if __name__ == '__main__':
+	#ConvexHullSolver.compute_hull(self,points=[QPointF(0, 0), QPointF(1, 1), QPointF(2, 1)], pause=False, view=False)
+	#new_points = ConvexHullSolver.find_hull(self, points=[QPointF(0, 0), QPointF(1, 1), QPointF(2, 1)])
