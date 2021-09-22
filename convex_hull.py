@@ -1,4 +1,5 @@
 #import self
+import math
 
 from which_pyqt import PYQT_VER
 if PYQT_VER == 'PYQT5':
@@ -80,7 +81,7 @@ class ConvexHullSolver(QObject):
 		#print("after find_hull")
 		#print(new_points)
 		polygon = [QLineF(new_points[i].x(), new_points[i].y(),
-						  new_points[(i + 1) % len(new_points)].x(), new_points[(i + 1) % len(new_points)].y())
+						 new_points[(i + 1) % len(new_points)].x(), new_points[(i + 1) % len(new_points)].y())
 				   for i in range(len(new_points))]
 		t4 = time.time()
 
@@ -94,80 +95,207 @@ class ConvexHullSolver(QObject):
 	# recursively call this function until points/2 < 1
 	# lol then combine the hulls XD simple
 	def find_hull(self, points):
-		print("in find_hull")
-		l = len(points)
-		temp = []
-		if l == 1:
+		length = len(points)
+
+		if length == 1:
 			return points
 
-		if l == 2:
+		elif length == 2:
 			# find the hull of 2
 			# check the slope
-			slope = (points[1].y() - points[0].y()) / (points[1].x() - points[0].y())
-			if slope >= 0:
+			#slope = (points[1].y() - points[0].y()) / (points[1].x() - points[0].y())
+			#if slope >= 0:
 				return points
-			elif slope < 0:
-				temp = temp.append(points[1])
-				temp = temp.append(points[0])
-				return temp
+			#elif slope < 0:
+				#temp = [0, 0]
+				#new = points[0]
+				#newOne = points[1]
+				#temp[0] = newOne
+				#temp[1] = new
+				#return temp
 
-		if l == 3:
+		elif length == 3:
 			# find the hull of 3
 			# find starting point, get decreasing slopes
-			p = points[0]
 			slopeP0ToP1 = (points[1].y() - points[0].y()) / (points[1].x() - points[0].y())
 			slopeP0ToP2 = (points[2].y() - points[0].y()) / (points[2].x() - points[0].y())
 			if slopeP0ToP1 > slopeP0ToP2:
-				#print("in find_hull")
-				#print(points)
 				return points
 			else:
 				# make it clockwise oriented
-				temp = points
-				temp[0] = points[0]
-				temp[1] = points[2]
-				temp[2] = points[1]
-				print(temp)
+				temp = [0, 0, 0]
+				new2 = points[2]
+				new1 = points[1]
+				new = points[0]
+				temp[0] = new
+				temp[1] = new2
+				temp[2] = new1
 				return temp
+		left_hull = points[:math.ceil(length / 2)]
+		right_hull = points[math.ceil(length / 2):]
+		L = self.find_hull(left_hull)
+		R = self.find_hull(right_hull)
+
+		print("L  ", L)
+		print("R  ", R)
+		upper_tangent = self.find_upper_tangent(L, R)
+		print("upper tangent  ", upper_tangent)
+		lower_tangent = self.find_lower_tangent(L, R)
+		# MERGE HULLS
+		final_hull = self.merge_hull(L, R, upper_tangent, lower_tangent)
+		# points = points + [upper_tangent.pointAt(0)] + [upper_tangent.pointAt(1)]
+		return final_hull
+
+	def merge_hull(self, L, R, upper_tangent, lower_tangent):
+		# start at L[0]
+		# find upper_tangent left point
+		# find upper_tangent right point
+		# connect those/ put upper right point in the list
+		# add points to final_hull until we get to right lower tangent
+		upper_left_point = upper_tangent.pointAt(0)
+		upper_right_point = upper_tangent.pointAt(1)
+		lower_right_point = lower_tangent.pointAt(1)
+		lower_left_point = lower_tangent.pointAt(0)
+
+		final_hull = []
+		final_hull.append(L[0])
+		for point in L:
+			# if we don't already have the upper left tangent point, add the rest of points til we find it
+			# then add the upper left tangent
+			if L[0] == upper_left_point:
+				break
+			elif point == upper_left_point:
+				final_hull.append(point)
+				break
+			elif point != upper_left_point and point != L[0]:
+				final_hull.append(point)
+			elif point == L[0]:
+				continue
+			else:
+				break
+		final_hull.append(upper_right_point)
+		index = 0
+		while upper_right_point.x() != R[index].x():
+			index += 1
+		for i in range(index, len(R)):
+			if R[i] == upper_right_point:
+				continue
+			elif R[i] != lower_right_point:
+				final_hull.append(R[i])
+			else:
+				break
+		final_hull.append(lower_right_point)
+		final_hull.append(lower_left_point)
+		index = 0
+		while lower_left_point.x() != L[index].x() and index < (len(L)):
+			index += 1
+		for i in range(index, len(L)):
+			if L[i] != L[0]:
+				final_hull.append(L[i])
+			else:
+				break
+
+		return final_hull
 
 # right in the list to go clockwise
 	def find_upper_tangent(self, L, R):
-		#find rightmost point p in L and leftmost point q in R
-		#temp = line(p,q)
+		# find rightmost point rightmost_left_point in L and leftmost point leftmost_right_point in R
+		# print(L)
+		index_L = -1
+		rightmost_left_point = L[index_L]
+		# print("rightmost_left_point = :", rightmost_left_point)
+		index_R = 0  # -1??
+		leftmost_right_point = R[index_R]
+		temp = QLineF(rightmost_left_point, leftmost_right_point)
 		done = 0
 		while not done:
 			done = 1
+			temp = QLineF(rightmost_left_point, leftmost_right_point)
+			while abs(index_L) < len(L):
+				index_L = index_L - 1
+				r = L[index_L]  # r is point we check, L is left hull
+				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
+				slope = self.calc_slope(leftmost_right_point, r)
+				# if the slope is steeper (so higher up the hull)
+				if slope <= prev_slope:
+					rightmost_left_point = r
+					temp = QLineF(r, leftmost_right_point)
+					done = 0
+				else:
+					# otherwise, make no changes to point rightmost_left_point
+					break
+			# move right hull point up to correct point
+			while abs(index_R) < (len(R) - 1):
+				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
+				index_R = index_R + 1
+				r = R[index_R]
+				slope = self.calc_slope(rightmost_left_point, r)
+				if slope > prev_slope:
+					done = 0
+					leftmost_right_point = r
+					temp = QLineF(rightmost_left_point, r)
+				else:
+					break
 			# while temp is not upper tangent to L:
-				# r = p's counter clockwise neighbor
-				# temp = line(r,q)
-				# p = r
+				# r = rightmost_left_point's counter clockwise neighbor
+					# switch back and forth while the slope is increasing, and then switch to the other side,
+																		# until the slope starts to decrease
+				# temp = line(r,leftmost_right_point)
+				# rightmost_left_point = r
 				# done = 0
 			# while temp is not upper tangent to R:
-				# r = q's clockwise neighbor
-				# temp = line(p,r)
-				# q = r
+				# r = leftmost_right_point's clockwise neighbor
+				# temp = line(rightmost_left_point,r)
+				# leftmost_right_point = r
 				# done = 0
-			#return temp
-			return 0
+			# return temp
+
+			return temp
 
 	def find_lower_tangent(self, L, R):
 		# find rightmost point p in L and leftmost point q in R
 		# temp = line(p,q)
+		index_L = -1
+		rightmost_left_point = L[index_L]
+		index_R = 0
+		leftmost_right_point = R[index_R]
+		temp = QLineF(rightmost_left_point, leftmost_right_point)
 		done = 0
 		while not done:
 			done = 1
-			# while temp is not upper tangent to L:
-				# r = p's counter counterclockwise neighbor
-				# temp = line(r,q)
-				# p = r
-				# done = 0
-			# while temp is not upper tangent to R:
-				# r = q's counterclockwise neighbor
-				# temp = line(p,r)
-				# q = r
-				# done = 0
-		# return temp
-		return 0
+			temp = QLineF(rightmost_left_point, leftmost_right_point)
+			if index_L == (len(L)):
+				index_L = -1
+			while abs(index_L) < (len(L)):
+				index_L = index_L + 1
+				r = L[index_L]  # r is point we check, L is left hull
+				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
+				slope = self.calc_slope(leftmost_right_point, r)
+				# if the slope is steeper (so higher up the hull)
+				if slope > prev_slope:
+					rightmost_left_point = r
+					temp = QLineF(r, leftmost_right_point)
+					done = 0
+				else:
+					# otherwise, make no changes to point rightmost_left_point
+					break
+			# move right hull point up to correct point
+			while abs(index_R) < (len(R)):
+				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
+				index_R = index_R - 1
+				r = R[index_R]
+				slope = self.calc_slope(rightmost_left_point, r)
+				if slope <= prev_slope:
+					done = 0
+					leftmost_right_point = r
+					temp = QLineF(rightmost_left_point, r)
+				else:
+					break
+			print("lower tangent: ", temp)
+			return temp
+
+	def calc_slope(self, p1, p2):
+		return (p1.y()-p2.y()) / (p1.x() - p2.x())
 
 
 #if __name__ == '__main__':
