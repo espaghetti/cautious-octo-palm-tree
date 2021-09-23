@@ -101,24 +101,13 @@ class ConvexHullSolver(QObject):
 			return points
 
 		elif length == 2:
-			# find the hull of 2
-			# check the slope
-			#slope = (points[1].y() - points[0].y()) / (points[1].x() - points[0].y())
-			#if slope >= 0:
-				return points
-			#elif slope < 0:
-				#temp = [0, 0]
-				#new = points[0]
-				#newOne = points[1]
-				#temp[0] = newOne
-				#temp[1] = new
-				#return temp
+			return points
 
 		elif length == 3:
 			# find the hull of 3
 			# find starting point, get decreasing slopes
-			slopeP0ToP1 = (points[1].y() - points[0].y()) / (points[1].x() - points[0].y())
-			slopeP0ToP2 = (points[2].y() - points[0].y()) / (points[2].x() - points[0].y())
+			slopeP0ToP1 = (points[1].y() - points[0].y()) / (points[1].x() - points[0].x())
+			slopeP0ToP2 = (points[2].y() - points[0].y()) / (points[2].x() - points[0].x())
 			if slopeP0ToP1 > slopeP0ToP2:
 				return points
 			else:
@@ -173,46 +162,56 @@ class ConvexHullSolver(QObject):
 				continue
 			else:
 				break
-		final_hull.append(upper_right_point)
 		index = 0
-		while upper_right_point.x() != R[index].x():
+		while upper_right_point != R[index]:
 			index += 1
 		for i in range(index, len(R)):
 			if R[i] == upper_right_point:
+				#if the upper right tangent point == lower right tangent point, we don't want to add them twice
+				if upper_right_point == lower_right_point:
+					break
+				final_hull.append(upper_right_point)
 				continue
 			elif R[i] != lower_right_point:
 				final_hull.append(R[i])
+			elif R[i] == lower_right_point:
+				break
 			else:
 				break
 		final_hull.append(lower_right_point)
+		#if lower_right_point != lower_left_point:
 		final_hull.append(lower_left_point)
 		index = 0
-		while lower_left_point.x() != L[index].x() and index < (len(L)):
+		while lower_left_point != L[index]:
 			index += 1
 		for i in range(index, len(L)):
-			if L[i] != L[0]:
+			if L[i] != lower_left_point:
 				final_hull.append(L[i])
 			else:
 				break
-
+		final_hull.append(L[0])
 		return final_hull
 
 # right in the list to go clockwise
 	def find_upper_tangent(self, L, R):
 		# find rightmost point rightmost_left_point in L and leftmost point leftmost_right_point in R
-		# print(L)
-		index_L = -1
+		index_L = self.get_most_right_point_index(L)
 		rightmost_left_point = L[index_L]
-		# print("rightmost_left_point = :", rightmost_left_point)
 		index_R = 0  # -1??
 		leftmost_right_point = R[index_R]
 		temp = QLineF(rightmost_left_point, leftmost_right_point)
 		done = 0
+		old_index_L = 0
 		while not done:
 			done = 1
 			temp = QLineF(rightmost_left_point, leftmost_right_point)
+			if abs(index_L) > len(L):
+				index_L = index_L + len(L)
 			while abs(index_L) < len(L):
+				old_index_L = index_L
 				index_L = index_L - 1
+				if abs(index_L) > len(L):
+					index_L = index_L + (len(L) - 1)
 				r = L[index_L]  # r is point we check, L is left hull
 				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
 				slope = self.calc_slope(leftmost_right_point, r)
@@ -221,12 +220,19 @@ class ConvexHullSolver(QObject):
 					rightmost_left_point = r
 					temp = QLineF(r, leftmost_right_point)
 					done = 0
+					#if abs(index_L) > len(L):
+						#index_L = index_L + 3
+					#index_L = old_index_L
+					#break
 				else:
 					# otherwise, make no changes to point rightmost_left_point
+					index_L = old_index_L
+					done = 1
 					break
 			# move right hull point up to correct point
 			while abs(index_R) < (len(R) - 1):
 				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
+				old_index_R = index_R
 				index_R = index_R + 1
 				r = R[index_R]
 				slope = self.calc_slope(rightmost_left_point, r)
@@ -234,28 +240,18 @@ class ConvexHullSolver(QObject):
 					done = 0
 					leftmost_right_point = r
 					temp = QLineF(rightmost_left_point, r)
-				else:
 					break
-			# while temp is not upper tangent to L:
-				# r = rightmost_left_point's counter clockwise neighbor
-					# switch back and forth while the slope is increasing, and then switch to the other side,
-																		# until the slope starts to decrease
-				# temp = line(r,leftmost_right_point)
-				# rightmost_left_point = r
-				# done = 0
-			# while temp is not upper tangent to R:
-				# r = leftmost_right_point's clockwise neighbor
-				# temp = line(rightmost_left_point,r)
-				# leftmost_right_point = r
-				# done = 0
-			# return temp
+				else:
+					index_R = old_index_R
+					done = 1
+					break
 
-			return temp
+		return temp
 
 	def find_lower_tangent(self, L, R):
 		# find rightmost point p in L and leftmost point q in R
 		# temp = line(p,q)
-		index_L = -1
+		index_L = self.get_most_right_point_index(L)
 		rightmost_left_point = L[index_L]
 		index_R = 0
 		leftmost_right_point = R[index_R]
@@ -265,9 +261,13 @@ class ConvexHullSolver(QObject):
 			done = 1
 			temp = QLineF(rightmost_left_point, leftmost_right_point)
 			if index_L == (len(L)):
-				index_L = -1
+				index_L = 0
 			while abs(index_L) < (len(L)):
+				# set index_L = index of current right_most_left_point of L + 1
+				old_index_L = index_L
 				index_L = index_L + 1
+				if index_L == (len(L)):
+					index_L = 0
 				r = L[index_L]  # r is point we check, L is left hull
 				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
 				slope = self.calc_slope(leftmost_right_point, r)
@@ -276,12 +276,17 @@ class ConvexHullSolver(QObject):
 					rightmost_left_point = r
 					temp = QLineF(r, leftmost_right_point)
 					done = 0
+					#MAYBE DELETE
+					#break
 				else:
 					# otherwise, make no changes to point rightmost_left_point
+					index_L = old_index_L
+					done = 1
 					break
 			# move right hull point up to correct point
 			while abs(index_R) < (len(R)):
 				prev_slope = self.calc_slope(leftmost_right_point, rightmost_left_point)
+				old_index_R = index_R
 				index_R = index_R - 1
 				r = R[index_R]
 				slope = self.calc_slope(rightmost_left_point, r)
@@ -289,13 +294,31 @@ class ConvexHullSolver(QObject):
 					done = 0
 					leftmost_right_point = r
 					temp = QLineF(rightmost_left_point, r)
-				else:
+					# MAYBE DELETE
 					break
-			print("lower tangent: ", temp)
-			return temp
+				else:
+					index_R = old_index_R
+					done = 1
+					break
+		print("lower tangent: ", temp)
+		return temp
 
 	def calc_slope(self, p1, p2):
 		return (p1.y()-p2.y()) / (p1.x() - p2.x())
+
+	def get_most_right_point_index(self, L):
+		most_right_point = L[0]
+		index_of_most_right_point = 0
+		for index in range(len(L)):
+			if L[index].x() > most_right_point.x():
+				most_right_point = L[index]
+				index_of_most_right_point = index
+		return index_of_most_right_point
+
+	def get_index_of_point(self, Hull, point):
+		for index in range(len(Hull)):
+			if Hull[index] == point:
+				return index
 
 
 #if __name__ == '__main__':
